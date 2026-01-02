@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>AI Background Remover - Offline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Roboto Mono', 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #ffffff;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Main Layout */
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #0f0f0f;
+            border-bottom: 1px solid #333;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #00d4ff;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00d4ff;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0a0a0a;
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            cursor: crosshair;
+            display: block;
+            image-rendering: crisp-edges;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        .zoom-indicator {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #00d4ff;
+            z-index: 10;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 15, 15, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            gap: 8px;
+            z-index: 50;
+            backdrop-filter: blur(10px);
+            opacity: 1;
+            transition: opacity 0.3s ease;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 90%;
+        }
+
+        .toolbar.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .toolbar-btn {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #ffffff;
+            padding: 10px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'Roboto Mono', monospace;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            touch-action: manipulation;
+        }
+
+        .toolbar-btn:hover {
+            background: #2a2a2a;
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        .toolbar-btn:active {
+            transform: scale(0.95);
+        }
+
+        .toolbar-btn.active {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #0a0a0a;
+        }
+
+        .toolbar-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .toolbar-separator {
+            width: 1px;
+            background: #333;
+            margin: 0 4px;
+        }
+
+        /* Side Panel */
+        .side-panel {
+            width: 280px;
+            background: #0f0f0f;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 40;
+            flex-shrink: 0;
+        }
+
+        .panel-section {
+            border-bottom: 1px solid #333;
+            padding: 16px;
+        }
+
+        .panel-title {
+            font-size: 11px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #00d4ff;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        .control-label {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #2a2a2a;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00d4ff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            width: 16px;
+            height: 16px;
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00d4ff;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            width: 16px;
+            height: 16px;
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+        }
+
+        .value-display {
+            font-size: 12px;
+            color: #00d4ff;
+            margin-top: 6px;
+            text-align: right;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .panel-btn {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'Roboto Mono', monospace;
+            transition: all 0.2s ease;
+            text-align: center;
+            touch-action: manipulation;
+        }
+
+        .panel-btn:hover {
+            background: #2a2a2a;
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        .panel-btn:active {
+            transform: scale(0.95);
+        }
+
+        .panel-btn.primary {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #0a0a0a;
+            font-weight: 700;
+        }
+
+        .panel-btn.primary:hover {
+            background: #00b8cc;
+            border-color: #00b8cc;
+        }
+
+        .panel-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Color Picker */
+        .color-input-wrapper {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .color-picker {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #1a1a1a;
+        }
+
+        .color-picker:hover {
+            border-color: #00d4ff;
+        }
+
+        /* Tool Options */
+        .tool-options {
+            display: flex;
+            gap: 6px;
+        }
+
+        .tool-option {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #999;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            text-align: center;
+            transition: all 0.2s ease;
+            touch-action: manipulation;
+        }
+
+        .tool-option.selected {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #0a0a0a;
+            font-weight: 700;
+        }
+
+        .tool-option:hover {
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        /* Processing Indicator */
+        .processing-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px 40px;
+            border-radius: 8px;
+            text-align: center;
+            z-index: 60;
+            display: none;
+        }
+
+        .processing-indicator.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top: 3px solid #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .processing-text {
+            font-size: 12px;
+            color: #00d4ff;
+            letter-spacing: 1px;
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #00d4ff;
+        }
+
+        .modal-input {
+            width: 100%;
+            background: #0f0f0f;
+            border: 1px solid #333;
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background: #0f0f0f;
+            color: #ffffff;
+            cursor: pointer;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 12px;
+            transition: all 0.2s ease;
+            touch-action: manipulation;
+        }
+
+        .modal-buttons button:hover {
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        .modal-buttons button.primary {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #0a0a0a;
+            font-weight: 700;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .side-panel {
+                width: 100%;
+                max-height: 40vh;
+                border-left: none;
+                border-top: 1px solid #333;
+            }
+
+            .main-content {
+                flex-direction: column;
+            }
+
+            .toolbar {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                transform: none;
+                max-width: calc(100% - 20px);
+            }
+
+            .zoom-indicator {
+                top: 10px;
+                right: 10px;
+                font-size: 11px;
+            }
+
+            .toolbar-btn {
+                font-size: 11px;
+                padding: 8px 10px;
+            }
+
+            .toolbar-separator {
+                display: none;
+            }
+        }
+
+        /* Scrollbar */
+        .side-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .side-panel::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+
+        .side-panel::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+
+        .side-panel::-webkit-scrollbar-thumb:hover {
+            background: #00d4ff;
+        }
+
+        /* Hidden File Input */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #00d4ff;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 150;
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.error {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .toast.success {
+            border-color: #44ff44;
+            color: #44ff44;
+        }
+
+        /* Loading State */
+        .empty-state {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #666;
+            z-index: 5;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">AI REMOVER</div>
+            <div class="header-right">
+                <div class="status-indicator"></div>
+                <span style="font-size: 12px; color: #666;">OFFLINE</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="canvas-area">
+                <div class="canvas-wrapper">
+                    <canvas id="mainCanvas"></canvas>
+                    <div class="zoom-indicator">
+                        <span id="zoomLevel">100%</span>
+                    </div>
+                    <div class="empty-state" id="emptyState">
+                        <div class="empty-state-icon">📤</div>
+                        <div class="empty-state-text">UPLOAD OR PASTE IMAGE</div>
+                    </div>
+                </div>
+
+                <div class="processing-indicator" id="processingIndicator">
+                    <div class="spinner"></div>
+                    <div class="processing-text">PROCESSING...</div>
+                </div>
+
+                <div class="toolbar" id="toolbar">
+                    <button class="toolbar-btn" id="removeBtn" title="Remove Background (R)">
+                        ✂ REMOVE
+                    </button>
+                    <button class="toolbar-btn" id="restoreBtn" title="Restore Area (E)">
+                        ↶ RESTORE
+                    </button>
+                    <button class="toolbar-btn" id="eraseBtn" title="Erase Area (D)">
+                        ✕ ERASE
+                    </button>
+                    <div class="toolbar-separator"></div>
+                    <button class="toolbar-btn" id="undoBtn" title="Undo (Z)">
+                        ↶ UNDO
+                    </button>
+                    <button class="toolbar-btn" id="redoBtn" title="Redo (Y)">
+                        ↷ REDO
+                    </button>
+                    <div class="toolbar-separator"></div>
+                    <button class="toolbar-btn" id="resetBtn" title="Reset">
+                        ⟲ RESET
+                    </button>
+                    <button class="toolbar-btn" id="downloadBtn" title="Download" style="color: #00d4ff;">
+                        ⬇ DOWNLOAD
+                    </button>
+                </div>
+            </div>
+
+            <div class="side-panel">
+                <div class="panel-section">
+                    <div class="panel-title">Image</div>
+                    <div class="button-group">
+                        <button class="panel-btn" id="uploadBtn">📤 UPLOAD</button>
+                        <button class="panel-btn" id="pasteBtn">📋 PASTE</button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="panel-title">Tools</div>
+                    <div class="control-group">
+                        <label class="control-label">BRUSH SIZE</label>
+                        <input type="range" id="brushSize" min="5" max="100" value="20">
+                        <div class="value-display"><span id="brushSizeValue">20</span>px</div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">HARDNESS</label>
+                        <input type="range" id="brushHardness" min="0" max="100" value="70">
+                        <div class="value-display"><span id="brushHardnessValue">70</span>%</div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="panel-title">Detection</div>
+                    <div class="control-group">
+                        <label class="control-label">SENSITIVITY</label>
+                        <input type="range" id="sensitivity" min="30" max="100" value="70">
+                        <div class="value-display"><span id="sensitivityValue">70</span>%</div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">EDGE FEATHER</label>
+                        <input type="range" id="edgeFeather" min="0" max="20" value="8">
+                        <div class="value-display"><span id="edgeFeatherValue">8</span>px</div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="panel-title">Background</div>
+                    <div class="control-group">
+                        <div class="tool-options">
+                            <div class="tool-option selected" data-bg="transparent">TRANSPARENT</div>
+                            <div class="tool-option" data-bg="solid">SOLID</div>
+                            <div class="tool-option" data-bg="blur">BLUR</div>
+                        </div>
+                    </div>
+                    <div class="control-group" id="solidColorGroup" style="display: none;">
+                        <label class="control-label">COLOR</label>
+                        <div class="color-input-wrapper">
+                            <input type="color" class="color-picker" id="bgColor" value="#ffffff">
+                            <span id="bgColorValue">#ffffff</span>
+                        </div>
+                    </div>
+                    <div class="control-group" id="blurAmountGroup" style="display: none;">
+                        <label class="control-label">BLUR</label>
+                        <input type="range" id="blurAmount" min="2" max="30" value="10">
+                        <div class="value-display"><span id="blurAmountValue">10</span>px</div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="panel-title">Zoom</div>
+                    <div class="control-group">
+                        <div class="button-group">
+                            <button class="panel-btn" id="zoomInBtn">🔍+ IN</button>
+                            <button class="panel-btn" id="zoomOutBtn">🔍- OUT</button>
+                            <button class="panel-btn" id="fitBtn">⊡ FIT</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="panel-title">Export</div>
+                    <div class="button-group">
+                        <button class="panel-btn primary" id="downloadPngBtn">⬇ PNG</button>
+                        <button class="panel-btn" id="downloadJpgBtn">⬇ JPG</button>
+                        <button class="panel-btn" id="copyBtn">📋 COPY</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*">
+
+    <script src="remover.js"></script>
+</body>
+</html>

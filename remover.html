@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Background Remover - Offline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Roboto Mono', 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #ffffff;
+        }
+
+        /* Main Layout */
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #0f0f0f;
+            border-bottom: 1px solid #333;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #00d4ff;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00d4ff;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0a0a0a;
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            cursor: crosshair;
+            display: block;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .zoom-indicator {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #00d4ff;
+            z-index: 10;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 15, 15, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            gap: 8px;
+            z-index: 50;
+            backdrop-filter: blur(10px);
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .toolbar.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .toolbar-btn {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #ffffff;
+            padding: 10px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'Roboto Mono', monospace;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .toolbar-btn:hover {
+            background: #2a2a2a;
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        .toolbar-btn.active {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #0a0a0a;
+        }
+
+        .toolbar-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .toolbar-separator {
+            width: 1px;
+            background: #333;
+            margin: 0 4px;
+        }
+
+        /* Side Panel */
+        .side-panel {
+            width: 280px;
+            background: #0f0f0f;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 40;
+        }
+
+        .panel-section {
+            border-bottom: 1px solid #333;
+            padding: 16px;
+        }
+
+        .panel-title {
+            font-size: 11px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #00d4ff;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        .control-label {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #2a2a2a;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00d4ff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            width: 16px;
+            height: 16px;
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00d4ff;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            width: 16px;
+            height: 16px;
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+        }
+
+        .value-display {
+            font-size: 12px;
+            color: #00d4ff;
+            margin-top: 6px;
+            text-align: right;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .panel-btn {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'Roboto Mono', monospace;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .panel-btn:hover {
+            background: #2a2a2a;
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        .panel-btn.primary {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #0a0a0a;
+            font-weight: 700;
+        }
+
+        .panel-btn.primary:hover {
+            background: #00b8cc;
+            border-color: #00b8cc;
+        }
+
+        .panel-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Color Picker */
+        .color-input-wrapper {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .color-picker {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #1a1a1a;
+        }
+
+        .color-picker:hover {
+            border-color: #00d4ff;
+        }
+
+        /* Tool Options */
+        .tool-options {
+            display: flex;
+            gap: 6px;
+        }
+
+        .tool-option {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #999;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .tool-option.selected {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #0a0a0a;
+            font-weight: 700;
+        }
+
+        .tool-option:hover {
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        /* Processing Indicator */
+        .processing-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px 40px;
+            border-radius: 8px;
+            text-align: center;
+            z-index: 60;
+            display: none;
+        }
+
+        .processing-indicator.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top: 3px solid #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .processing-text {
+            font-size: 12px;
+            color: #00d4ff;
+            letter-spacing: 1px;
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #00d4ff;
+        }
+
+        .modal-input {
+            width: 100%;
+            background: #0f0f0f;
+            border: 1px solid #333;
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background: #0f0f0f;
+            color: #ffffff;
+            cursor: pointer;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .modal-buttons button:hover {
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        .modal-buttons button.primary {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #0a0a0a;
+            font-weight: 700;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .side-panel {
+                width: 100%;
+                max-height: 40vh;
+                border-left: none;
+                border-top: 1px solid #333;
+            }
+
+            .main-content {
+                flex-direction: column;
+            }
+
+            .toolbar {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                transform: none;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .zoom-indicator {
+                top: 10px;
+                right: 10px;
+                font-size: 11px;
+            }
+        }
+
+        /* Scrollbar */
+        .side-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .side-panel::-webkit-scrollbar-track {
+            background: #0f0f0f;
+        }
+
+        .side-panel::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+
+        .side-panel::-webkit-scrollbar-thumb:hover {
+            background: #00d4ff;
+        }
+
+        /* Hidden File Input */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Brush Cursor */
+        .brush-cursor {
+            position: absolute;
+            border: 2px solid #00d4ff;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 30;
+            opacity: 0.7;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #00d4ff;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 150;
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.error {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .toast.success {
+            border-color: #44ff44;
+            color: #44ff44;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">AI REMOVER</div>
+            <div class="header-right">
+                <div class="status-indicator"></div>
+                <span style="font-size: 12px; color: #666;">OFFLINE</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="canvas-area">
+                <div class="canvas-wrapper">
+                    <canvas id="mainCanvas"></canvas>
+                    <div class="zoom-indicator">
+                        <span id="zoomLevel">100%</span>
+                    </div>
+                </div>
+
+                <div class="processing-indicator" id="processingIndicator">
+                    <div class="spinner"></div>
+                    <div class="processing-text">PROCESSING...</div>
+                </div>
+
+                <div class="toolbar" id="toolbar">
+                    <button class="toolbar-btn" id="removeBtn" title="Remove Background (R)">
+                        ✂ REMOVE BG
+                    </button>
+                    <button class="toolbar-btn" id="restoreBtn" title="Restore Area (E)">
+                        ↶ RESTORE
+                    </button>
+                    <button class="toolbar-btn" id="eraseBtn" title="Erase Area (D)">
+                        ✕ ERASE
+                    </button>
+                    <div class="toolbar-separator"></div>
+                    <button class="toolbar-btn" id="undoBtn" title="Undo (Z)">
+                        ↶ UNDO
+                    </button>
+                    <button class="toolbar-btn" id="redoBtn" title="Redo (Y)">
+                        ↷ REDO
+                    </button>
+                    <div class="toolbar-separator"></div>
+                    <button class="toolbar-btn" id="resetBtn" title="Reset">
+                        ⟲ RESET
+                    </button>
+                    <button class="toolbar-btn" id="downloadBtn" title="Download" style="color: #00d4ff;">
+                        ⬇ DOWNLOAD
+                    </button>
+                </div>
+            </div>
+
+            <div class="side-panel">
+                <div class="panel-section">
+                    <div class="panel-title">Image</div>
+                    <div class="button-group">
+                        <button class="panel-btn" id="uploadBtn">📤 UPLOAD IMAGE</button>
+                        <button class="panel-btn" id="pasteBtn">📋 PASTE IMAGE</button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="panel-title">Tools</div>
+                    <div class="control-group">
+                        <label class="control-label">BRUSH SIZE</label>
+                        <input type="range" id="brushSize" min="5" max="100" value="20">
+                        <div class="value-display"><span id="brushSizeValue">20</span>px</div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">BRUSH HARDNESS</label>
+                        <input type="range" id="brushHardness" min="0" max="100" value="70">
+                        <div class="value-display"><span id="brushHardnessValue">70</span>%</div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="panel-title">Detection</div>
+                    <div class="control-group">
+                        <label class="control-label">SENSITIVITY</label>
+                        <input type="range" id="sensitivity" min="30" max="100" value="70">
+                        <div class="value-display"><span id="sensitivityValue">70</span>%</div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">EDGE FEATHER</label>
+                        <input type="range" id="edgeFeather" min="0" max="20" value="8">
+                        <div class="value-display"><span id="edgeFeatherValue">8</span>px</div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="panel-title">Background</div>
+                    <div class="control-group">
+                        <div class="tool-options">
+                            <div class="tool-option selected" data-bg="transparent">TRANSPARENT</div>
+                            <div class="tool-option" data-bg="solid">SOLID</div>
+                            <div class="tool-option" data-bg="blur">BLUR</div>
+                        </div>
+                    </div>
+                    <div class="control-group" id="solidColorGroup" style="display: none;">
+                        <label class="control-label">COLOR</label>
+                        <div class="color-input-wrapper">
+                            <input type="color" class="color-picker" id="bgColor" value="#ffffff">
+                            <span id="bgColorValue">#ffffff</span>
+                        </div>
+                    </div>
+                    <div class="control-group" id="blurAmountGroup" style="display: none;">
+                        <label class="control-label">BLUR AMOUNT</label>
+                        <input type="range" id="blurAmount" min="2" max="30" value="10">
+                        <div class="value-display"><span id="blurAmountValue">10</span>px</div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="panel-title">Zoom</div>
+                    <div class="control-group">
+                        <div class="button-group">
+                            <button class="panel-btn" id="zoomInBtn">🔍+ ZOOM IN</button>
+                            <button class="panel-btn" id="zoomOutBtn">🔍- ZOOM OUT</button>
+                            <button class="panel-btn" id="fitBtn">⊡ FIT TO SCREEN</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="panel-title">Export</div>
+                    <div class="button-group">
+                        <button class="panel-btn primary" id="downloadPngBtn">⬇ PNG (TRANSPARENT)</button>
+                        <button class="panel-btn" id="downloadJpgBtn">⬇ JPG (SOLID)</button>
+                        <button class="panel-btn" id="copyBtn">📋 COPY TO CLIPBOARD</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*">
+
+    <script>
+        // ============================================
+        // AI BACKGROUND REMOVER - OFFLINE ENGINE
+        // ============================================
+
+        class BackgroundRemover {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+                this.originalImage = null;
+                this.currentImage = null;
+                this.maskCanvas = null;
+                this.maskCtx = null;
+                this.history = [];
+                this.historyIndex = -1;
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                this.isDrawing = false;
+                this.currentTool = 'remove';
+                this.brushSize = 20;
+                this.brushHardness = 70;
+                this.sensitivity = 70;
+                this.edgeFeather = 8;
+                this.backgroundColor = 'transparent';
+                this.bgColor = '#ffffff';
+                this.blurAmount = 10;
+                this.worker = null;
+                this.initWorker();
+            }
+
+            initWorker() {
+                const workerCode = `
+                    self.onmessage = function(e) {
+                        const { imageData, sensitivity, edgeFeather } = e.data;
+                        const data = imageData.data;
+                        const width = imageData.width;
+                        const height = imageData.height;
+                        
+                        // Create mask
+                        const mask = new Uint8ClampedArray(width * height);
+                        
+                        // Sobel edge detection
+                        const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+                        const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+                        
+                        for (let y = 1; y < height - 1; y++) {
+                            for (let x = 1; x < width - 1; x++) {
+                                let gx = 0, gy = 0;
+                                
+                                for (let ky = -1; ky <= 1; ky++) {
+                                    for (let kx = -1; kx <= 1; kx++) {
+                                        const idx = ((y + ky) * width + (x + kx)) * 4;
+                                        const gray = data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114;
+                                        const kernelIdx = (ky + 1) * 3 + (kx + 1);
+                                        gx += gray * sobelX[kernelIdx];
+                                        gy += gray * sobelY[kernelIdx];
+                                    }
+                                }
+                                
+                                const magnitude = Math.sqrt(gx * gx + gy * gy);
+                                mask[y * width + x] = magnitude;
+                            }
+                        }
+                        
+                        // Contrast-based foreground detection
+                        const threshold = (255 - sensitivity * 2.55) * 0.5;
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        
+                        for (let i = 0; i < mask.length; i++) {
+                            const y = Math.floor(i / width);
+                            const x = i % width;
+                            const distToCenter = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+                            const centerBoost = Math.max(0, 1 - distToCenter / Math.max(width, height));
+                            
+                            if (mask[i] > threshold || centerBoost > 0.3) {
+                                mask[i] = Math.min(255, mask[i] + centerBoost * 100);
+                            } else {
+                                mask[i] = 0;
+                            }
+                        }
+                        
+                        // Morphological operations - dilation
+                        const dilated = new Uint8ClampedArray(mask);
+                        for (let y = 1; y < height - 1; y++) {
+                            for (let x = 1; x < width - 1; x++) {
+                                let max = mask[y * width + x];
+                                for (let dy = -1; dy <= 1; dy++) {
+                                    for (let dx = -1; dx <= 1; dx++) {
+                                        max = Math.max(max, mask[(y + dy) * width + (x + dx)]);
+                                    }
+                                }
+                                dilated[y * width + x] = max;
+                            }
+                        }
+                        
+                        // Gaussian blur for feathering
+                        const feathered = new Uint8ClampedArray(dilated);
+                        const sigma = edgeFeather / 2;
+                        const radius = Math.ceil(edgeFeather);
+                        
+                        for (let y = 0; y < height; y++) {
+                            for (let x = 0; x < width; x++) {
+                                let sum = 0, weight = 0;
+                                
+                                for (let dy = -radius; dy <= radius; dy++) {
+                                    for (let dx = -radius; dx <= radius; dx++) {
+                                        const ny = Math.max(0, Math.min(height - 1, y + dy));
+                                        const nx = Math.max(0, Math.min(width - 1, x + dx));
+                                        const dist = dx * dx + dy * dy;
+                                        const gaussian = Math.exp(-dist / (2 * sigma * sigma));
+                                        
+                                        sum += dilated[ny * width + nx] * gaussian;
+                                        weight += gaussian;
+                                    }
+                                }
+                                
+                                feathered[y * width + x] = sum / weight;
+                            }
+                        }
+                        
+                        // Apply mask to image
+                        for (let i = 0; i < data.length; i += 4) {
+                            const maskIdx = Math.floor(i / 4);
+                            const alpha = feathered[maskIdx];
+                            data[i + 3] = alpha;
+                        }
+                        
+                        self.postMessage({ imageData, mask: feathered });
+                    };
+                `;
+                
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                this.worker = new Worker(URL.createObjectURL(blob));
+            }
+
+            loadImage(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            this.originalImage = img;
+                            this.resizeCanvasToImage();
+                            this.drawImage();
+                            this.history = [];
+                            this.historyIndex = -1;
+                            resolve();
+                        };
+                        img.onerror = reject;
+                        img.src = e.target.result;
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            resizeCanvasToImage() {
+                const maxWidth = window.innerWidth * 0.7;
+                const maxHeight = window.innerHeight - 100;
+                let width = this.originalImage.width;
+                let height = this.originalImage.height;
+
+                if (width > maxWidth || height > maxHeight) {
+                    const ratio = Math.min(maxWidth / width, maxHeight / height);
+                    width *= ratio;
+                    height *= ratio;
+                }
+
+                this.canvas.width = width;
+                this.canvas.height = height;
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+
+                this.maskCanvas = document.createElement('canvas');
+                this.maskCanvas.width = width;
+                this.maskCanvas.height = height;
+                this.maskCtx = this.maskCanvas.getContext('2d', { willReadFrequently: true });
+            }
+
+            drawImage() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.save();
+                this.ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+                this.ctx.scale(this.zoom, this.zoom);
+                this.ctx.translate(-this.canvas.width / 2 + this.panX, -this.canvas.height / 2 + this.panY);
+                
+                // Draw checkerboard for transparency
+                this.drawCheckerboard();
+                
+                // Draw image
+                this.ctx.drawImage(this.originalImage, 0, 0, this.canvas.width, this.canvas.height);
+                
+                // Apply mask
+                if (this.maskCanvas) {
+                    const maskImageData = this.maskCtx.getImageData(0, 0, this.maskCanvas.width, this.maskCanvas.height);
+                    const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+                    
+                    for (let i = 0; i < maskImageData.data.length; i += 4) {
+                        imageData.data[i + 3] = maskImageData.data[i + 3];
+                    }
+                    
+                    this.ctx.putImageData(imageData, 0, 0);
+                }
+                
+                // Apply background
+                if (this.backgroundColor === 'solid') {
+                    this.ctx.globalCompositeOperation = 'destination-over';
+                    this.ctx.fillStyle = this.bgColor;
+                    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                } else if (this.backgroundColor === 'blur') {
+                    this.ctx.globalCompositeOperation = 'destination-over';
+                    this.applyBlurBackground();
+                }
+                
+                this.ctx.restore();
+            }
+
+            drawCheckerboard() {
+                const squareSize = 10;
+                for (let y = 0; y < this.canvas.height; y += squareSize) {
+                    for (let x = 0; x < this.canvas.width; x += squareSize) {
+                        if ((Math.floor(x / squareSize) + Math.floor(y / squareSize)) % 2 === 0) {
+                            this.ctx.fillStyle = '#2a2a2a';
+                        } else {
+                            this.ctx.fillStyle = '#1a1a1a';
+                        }
+                        this.ctx.fillRect(x, y, squareSize, squareSize);
+                    }
+                }
+            }
+
+            applyBlurBackground() {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.canvas.width;
+                tempCanvas.height = this.canvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                tempCtx.drawImage(this.originalImage, 0, 0, this.canvas.width, this.canvas.height);
+                
+                // Simple box blur
+                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                const data = imageData.data;
+                const radius = this.blurAmount;
+                
+                for (let i = 0; i < data.length; i += 4) {
+                    let r = 0, g = 0, b = 0, count = 0;
+                    const pixelIndex = i / 4;
+                    const x = pixelIndex % tempCanvas.width;
+                    const y = Math.floor(pixelIndex / tempCanvas.width);
+                    
+                    for (let dy = -radius; dy <= radius; dy++) {
+                        for (let dx = -radius; dx <= radius; dx++) {
+                            const nx = Math.max(0, Math.min(tempCanvas.width - 1, x + dx));
+                            const ny = Math.max(0, Math.min(tempCanvas.height - 1, y + dy));
+                            const idx = (ny * tempCanvas.width + nx) * 4;
+                            
+                            r += data[idx];
+                            g += data[idx + 1];
+                            b += data[idx + 2];
+                            count++;
+                        }
+                    }
+                    
+                    data[i] = r / count;
+                    data[i + 1] = g / count;
+                    data[i + 2] = b / count;
+                }
+                
+                tempCtx.putImageData(imageData, 0, 0);
+                this.ctx.drawImage(tempCanvas, 0, 0);
+            }
+
+            async removeBackground() {
+                showProcessing(true);
+                
+                return new Promise((resolve) => {
+                    const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+                    
+                    this.worker.onmessage = (e) => {
+                        const { imageData: resultData } = e.data;
+                        this.maskCtx.putImageData(resultData, 0, 0);
+                        this.saveHistory();
+                        this.drawImage();
+                        showProcessing(false);
+                        resolve();
+                    };
+                    
+                    this.worker.postMessage({
+                        imageData,
+                        sensitivity: this.sensitivity,
+                        edgeFeather: this.edgeFeather
+                    });
+                });
+            }
+
+            brush(x, y, mode) {
+                if (!this.maskCanvas) return;
+                
+                const size = this.brushSize;
+                const hardness = this.brushHardness / 100;
+                
+                this.maskCtx.globalCompositeOperation = mode === 'restore' ? 'source-over' : 'destination-out';
+                
+                const gradient = this.maskCtx.createRadialGradient(x, y, 0, x, y, size);
+                if (mode === 'restore') {
+                    gradient.addColorStop(0, `rgba(255, 255, 255, ${hardness})`);
+                    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                } else {
+                    gradient.addColorStop(0, `rgba(0, 0, 0, ${hardness})`);
+                    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                }
+                
+                this.maskCtx.fillStyle = gradient;
+                this.maskCtx.beginPath();
+                this.maskCtx.arc(x, y, size, 0, Math.PI * 2);
+                this.maskCtx.fill();
+                
+                this.drawImage();
+            }
+
+            saveHistory() {
+                this.historyIndex++;
+                this.history = this.history.slice(0, this.historyIndex);
+                
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.maskCanvas.width;
+                tempCanvas.height = this.maskCanvas.height;
+                tempCanvas.getContext('2d').drawImage(this.maskCanvas, 0, 0);
+                
+                this.history.push(tempCanvas);
+            }
+
+            undo() {
+                if (this.historyIndex > 0) {
+                    this.historyIndex--;
+                    this.restoreFromHistory();
+                }
+            }
+
+            redo() {
+                if (this.historyIndex < this.history.length - 1) {
+                    this.historyIndex++;
+                    this.restoreFromHistory();
+                }
+            }
+
+            restoreFromHistory() {
+                if (this.history[this.historyIndex]) {
+                    this.maskCtx.drawImage(this.history[this.historyIndex], 0, 0);
+                    this.drawImage();
+                }
+            }
+
+            reset() {
+                if (this.maskCanvas) {
+                    this.maskCtx.clearRect(0, 0, this.maskCanvas.width, this.maskCanvas.height);
+                    this.history = [];
+                    this.historyIndex = -1;
+                    this.drawImage();
+                }
+            }
+
+            zoom(factor) {
+                this.zoom *= factor;
+                this.zoom = Math.max(0.5, Math.min(3, this.zoom));
+                this.drawImage();
+                updateZoomDisplay();
+            }
+
+            fitToScreen() {
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                this.drawImage();
+                updateZoomDisplay();
+            }
+
+            downloadPNG() {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.canvas.width;
+                tempCanvas.height = this.canvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                tempCtx.drawImage(this.originalImage, 0, 0);
+                
+                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                const maskImageData = this.maskCtx.getImageData(0, 0, this.maskCanvas.width, this.maskCanvas.height);
+                
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    imageData.data[i + 3] = maskImageData.data[i + 3];
+                }
+                
+                tempCtx.putImageData(imageData, 0, 0);
+                
+                const link = document.createElement('a');
+                link.href = tempCanvas.toDataURL('image/png');
+                link.download = 'removed-background.png';
+                link.click();
+                
+                showToast('PNG downloaded!', 'success');
+            }
+
+            downloadJPG() {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.canvas.width;
+                tempCanvas.height = this.canvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                tempCtx.fillStyle = this.bgColor;
+                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                tempCtx.drawImage(this.originalImage, 0, 0);
+                
+                const link = document.createElement('a');
+                link.href = tempCanvas.toDataURL('image/jpeg', 0.95);
+                link.download = 'removed-background.jpg';
+                link.click();
+                
+                showToast('JPG downloaded!', 'success');
+            }
+
+            copyToClipboard() {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.canvas.width;
+                tempCanvas.height = this.canvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                tempCtx.drawImage(this.originalImage, 0, 0);
+                
+                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                const maskImageData = this.maskCtx.getImageData(0, 0, this.maskCanvas.width, this.maskCanvas.height);
+                
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    imageData.data[i + 3] = maskImageData.data[i + 3];
+                }
+                
+                tempCtx.putImageData(imageData, 0, 0);
+                
+                tempCanvas.toBlob((blob) => {
+                    navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]).then(() => {
+                        showToast('Copied to clipboard!', 'success');
+                    }).catch(() => {
+                        showToast('Failed to copy', 'error');
+                    });
+                });
+            }
+        }
+
+        // ============================================
+        // UI CONTROLLER
+        // ============================================
+
+        let remover = null;
+
+        function initializeApp() {
+            remover = new BackgroundRemover('mainCanvas');
+            setupEventListeners();
+        }
+
+        function setupEventListeners() {
+            // File upload
+            document.getElementById('uploadBtn').addEventListener('click', () => {
+                document.getElementById('fileInput').click();
+            });
+
+            document.getElementById('fileInput').addEventListener('change', (e) => {
+                if (e.target.files[0]) {
+                    remover.loadImage(e.target.files[0]).then(() => {
+                        showToast('Image loaded!', 'success');
+                    });
+                }
+            });
+
+            // Paste image
+            document.getElementById('pasteBtn').addEventListener('click', () => {
+                navigator.clipboard.read().then((items) => {
+                    for (let item of items) {
+                        if (item.types.includes('image/png')) {
+                            item.getType('image/png').then((blob) => {
+                                remover.loadImage(blob).then(() => {
+                                    showToast('Image pasted!', 'success');
+                                });
+                            });
+                        }
+                    }
+                }).catch(() => {
+                    showToast('No image in clipboard', 'error');
+                });
+            });
+
+            // Main tools
+            document.getElementById('removeBtn').addEventListener('click', () => {
+                if (remover.originalImage) {
+                    remover.removeBackground();
+                }
+            });
+
+            document.getElementById('restoreBtn').addEventListener('click', () => {
+                remover.currentTool = 'restore';
+                updateToolButtons();
+            });
+
+            document.getElementById('eraseBtn').addEventListener('click', () => {
+                remover.currentTool = 'erase';
+                updateToolButtons();
+            });
+
+            document.getElementById('undoBtn').addEventListener('click', () => {
+                remover.undo();
+            });
+
+            document.getElementById('redoBtn').addEventListener('click', () => {
+                remover.redo();
+            });
+
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                if (confirm('Reset all changes?')) {
+                    remover.reset();
+                }
+            });
+
+            // Brush controls
+            document.getElementById('brushSize').addEventListener('input', (e) => {
+                remover.brushSize = parseInt(e.target.value);
+                document.getElementById('brushSizeValue').textContent = e.target.value;
+            });
+
+            document.getElementById('brushHardness').addEventListener('input', (e) => {
+                remover.brushHardness = parseInt(e.target.value);
+                document.getElementById('brushHardnessValue').textContent = e.target.value;
+            });
+
+            // Detection controls
+            document.getElementById('sensitivity').addEventListener('input', (e) => {
+                remover.sensitivity = parseInt(e.target.value);
+                document.getElementById('sensitivityValue').textContent = e.target.value;
+            });
+
+            document.getElementById('edgeFeather').addEventListener('input', (e) => {
+                remover.edgeFeather = parseInt(e.target.value);
+                document.getElementById('edgeFeatherValue').textContent = e.target.value;
+            });
+
+            // Background options
+            document.querySelectorAll('.tool-option').forEach((opt) => {
+                opt.addEventListener('click', () => {
+                    document.querySelectorAll('.tool-option').forEach((o) => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    
+                    const bg = opt.dataset.bg;
+                    remover.backgroundColor = bg;
+                    
+                    document.getElementById('solidColorGroup').style.display = bg === 'solid' ? 'block' : 'none';
+                    document.getElementById('blurAmountGroup').style.display = bg === 'blur' ? 'block' : 'none';
+                    
+                    remover.drawImage();
+                });
+            });
+
+            document.getElementById('bgColor').addEventListener('input', (e) => {
+                remover.bgColor = e.target.value;
+                document.getElementById('bgColorValue').textContent = e.target.value;
+                remover.drawImage();
+            });
+
+            document.getElementById('blurAmount').addEventListener('input', (e) => {
+                remover.blurAmount = parseInt(e.target.value);
+                document.getElementById('blurAmountValue').textContent = e.target.value;
+                remover.drawImage();
+            });
+
+            // Zoom controls
+            document.getElementById('zoomInBtn').addEventListener('click', () => {
+                remover.zoom(1.2);
+            });
+
+            document.getElementById('zoomOutBtn').addEventListener('click', () => {
+                remover.zoom(0.8);
+            });
+
+            document.getElementById('fitBtn').addEventListener('click', () => {
+                remover.fitToScreen();
+            });
+
+            // Export
+            document.getElementById('downloadPngBtn').addEventListener('click', () => {
+                if (remover.originalImage) {
+                    remover.downloadPNG();
+                }
+            });
+
+            document.getElementById('downloadJpgBtn').addEventListener('click', () => {
+                if (remover.originalImage) {
+                    remover.downloadJPG();
+                }
+            });
+
+            document.getElementById('copyBtn').addEventListener('click', () => {
+                if (remover.originalImage) {
+                    remover.copyToClipboard();
+                }
+            });
+
+            document.getElementById('downloadBtn').addEventListener('click', () => {
+                if (remover.originalImage) {
+                    remover.downloadPNG();
+                }
+            });
+
+            // Canvas interaction
+            const canvas = document.getElementById('mainCanvas');
+            canvas.addEventListener('mousedown', (e) => {
+                if (remover.currentTool === 'restore' || remover.currentTool === 'erase') {
+                    remover.isDrawing = true;
+                    const rect = canvas.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) / remover.zoom + remover.canvas.width / 2 - remover.panX;
+                    const y = (e.clientY - rect.top) / remover.zoom + remover.canvas.height / 2 - remover.panY;
+                    remover.brush(x, y, remover.currentTool);
+                }
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (remover.isDrawing && (remover.currentTool === 'restore' || remover.currentTool === 'erase')) {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) / remover.zoom + remover.canvas.width / 2 - remover.panX;
+                    const y = (e.clientY - rect.top) / remover.zoom + remover.canvas.height / 2 - remover.panY;
+                    remover.brush(x, y, remover.currentTool);
+                }
+            });
+
+            canvas.addEventListener('mouseup', () => {
+                if (remover.isDrawing) {
+                    remover.isDrawing = false;
+                    remover.saveHistory();
+                }
+            });
+
+            canvas.addEventListener('mouseleave', () => {
+                remover.isDrawing = false;
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'r' || e.key === 'R') remover.removeBackground();
+                if (e.key === 'e' || e.key === 'E') remover.currentTool = 'restore';
+                if (e.key === 'd' || e.key === 'D') remover.currentTool = 'erase';
+                if (e.key === 'z' || e.key === 'Z') remover.undo();
+                if (e.key === 'y' || e.key === 'Y') remover.redo();
+                updateToolButtons();
+            });
+
+            // Toolbar auto-hide
+            let toolbarTimeout;
+            canvas.addEventListener('mousemove', () => {
+                document.getElementById('toolbar').classList.remove('hidden');
+                clearTimeout(toolbarTimeout);
+                toolbarTimeout = setTimeout(() => {
+                    document.getElementById('toolbar').classList.add('hidden');
+                }, 3000);
+            });
+        }
+
+        function updateToolButtons() {
+            document.getElementById('restoreBtn').classList.toggle('active', remover.currentTool === 'restore');
+            document.getElementById('eraseBtn').classList.toggle('active', remover.currentTool === 'erase');
+        }
+
+        function updateZoomDisplay() {
+            document.getElementById('zoomLevel').textContent = Math.round(remover.zoom * 100) + '%';
+        }
+
+        function showProcessing(show) {
+            document.getElementById('processingIndicator').classList.toggle('active', show);
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Initialize on load
+        window.addEventListener('load', initializeApp);
+    </script>
+</body>
+</html>
